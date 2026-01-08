@@ -562,14 +562,14 @@ Create `scripts/migrate.ts`:
 ```typescript
 import { getMigrator } from "@/lib/db/migrations";
 
-async function migrate() {
+async function main() {
   const migrator = getMigrator();
   const { error } = await migrator.migrateToLatest();
   if (error) throw error;
   console.log("Migrations complete.");
 }
 
-migrate();
+main();
 ```
 
 ### 3.6 Update package.json Scripts
@@ -681,9 +681,10 @@ Create `scripts/gen-key.ts`:
 import { JoseKey } from "@atproto/oauth-client-node";
 
 async function main() {
-  const key = await JoseKey.generate("ES256");
-  console.log(JSON.stringify(await key.privateJwk));
-}
+  const kid = Date.now().toString();
+  const key = await JoseKey.generate(["ES256"], kid);
+  console.log(JSON.stringify(key.privateJwk));
+};
 
 main();
 ```
