@@ -474,35 +474,13 @@ export default nextConfig;
 
 This tells Next.js to use the native SQLite module server-side.
 
-### 3.3 Define the Schema
-
-Create `lib/db/schema.ts`:
-
-```typescript
-export interface DatabaseSchema {
-  auth_state: AuthStateTable;
-  auth_session: AuthSessionTable;
-}
-
-interface AuthStateTable {
-  key: string;
-  value: string;
-}
-
-interface AuthSessionTable {
-  key: string;
-  value: string;
-}
-```
-
-### 3.4 Database Connection
+### 3.3 Database Connection
 
 Create `lib/db/index.ts`:
 
 ```typescript
 import Database from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
-import { DatabaseSchema } from "./schema";
 
 const DATABASE_PATH = process.env.DATABASE_PATH || "app.db";
 
@@ -519,14 +497,30 @@ export const getDb = (): Kysely<DatabaseSchema> => {
   }
   return _db;
 };
+
+export interface DatabaseSchema {
+  auth_state: AuthStateTable;
+  auth_session: AuthSessionTable;
+}
+
+interface AuthStateTable {
+  key: string;
+  value: string;
+}
+
+interface AuthSessionTable {
+  key: string;
+  value: string;
+}
 ```
 
-### 3.5 Create Migrations
+### 3.4 Create Migrations
 
 Create `lib/db/migrations.ts`:
 
 ```typescript
-import { Kysely, Migration, MigrationProvider } from "kysely";
+import { Kysely, Migration, Migrator } from "kysely";
+import { getDb } from ".";
 
 const migrations: Record<string, Migration> = {
   "001": {
@@ -550,140 +544,107 @@ const migrations: Record<string, Migration> = {
   },
 };
 
-export const migrationProvider: MigrationProvider = {
-  async getMigrations() {
-    return migrations;
-  },
-};
+export function getMigrator() {
+  const db = getDb();
+  return new Migrator({
+    db,
+    provider: {
+      getMigrations: async () => migrations,
+    },
+  });
+}
 ```
 
-### 3.6 Migration Script
+### 3.5 Migration Script
 
 Create `scripts/migrate.ts`:
 
 ```typescript
-import Database from "better-sqlite3";
-import { Kysely, Migrator, SqliteDialect } from "kysely";
-import { migrationProvider } from "../lib/db/migrations";
-import { DatabaseSchema } from "../lib/db/schema";
-
-const DATABASE_PATH = process.env.DATABASE_PATH || "app.db";
+import { getMigrator } from "@/lib/db/migrations";
 
 async function migrate() {
-  const sqlite = new Database(DATABASE_PATH);
-  sqlite.pragma("journal_mode = WAL");
-
-  const db = new Kysely<DatabaseSchema>({
-    dialect: new SqliteDialect({ database: sqlite }),
-  });
-
-  const migrator = new Migrator({ db, provider: migrationProvider });
+  const migrator = getMigrator();
   const { error } = await migrator.migrateToLatest();
-
   if (error) throw error;
-
   console.log("Migrations complete.");
-  await db.destroy();
 }
 
 migrate();
 ```
 
-### 3.7 Update package.json Scripts
+### 3.6 Update package.json Scripts
 
 ```json
 {
   "scripts": {
     "dev": "pnpm migrate && next dev",
     "build": "next build",
-    "start": "pnpm migrate && next start --port ${PORT-3000}",
+    "start": "pnpm migrate && next start",
     "migrate": "tsx scripts/migrate.ts"
   }
 }
 ```
 
-### 3.8 Update OAuth Client to Use Database
+### 3.7 Update OAuth Client to Use Database
 
-Replace `lib/auth/client.ts`:
+Update the following sections in `lib/auth/client.ts`:
 
 ```typescript
-import {
-  NodeOAuthClient,
-  atprotoLoopbackClientMetadata,
-} from "@atproto/oauth-client-node";
-import type {
-  NodeSavedSession,
-  NodeSavedState,
-} from "@atproto/oauth-client-node";
-import { getDb } from "@/lib/db";
-
-let client: NodeOAuthClient | null = null;
-
-export async function getOAuthClient(): Promise<NodeOAuthClient> {
-  if (client) return client;
-
-  client = new NodeOAuthClient({
-    clientMetadata: atprotoLoopbackClientMetadata(
-      `http://localhost?${new URLSearchParams([
-        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", "atproto"],
-      ])}`
-    ),
-
-    stateStore: {
-      async get(key: string) {
-        const db = getDb();
-        const row = await db
-          .selectFrom("auth_state")
-          .select("value")
-          .where("key", "=", key)
-          .executeTakeFirst();
-        return row ? JSON.parse(row.value) : undefined;
-      },
-      async set(key: string, value: NodeSavedState) {
-        const db = getDb();
-        const valueJson = JSON.stringify(value);
-        await db
-          .insertInto("auth_state")
-          .values({ key, value: valueJson })
-          .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
-          .execute();
-      },
-      async del(key: string) {
-        const db = getDb();
-        await db.deleteFrom("auth_state").where("key", "=", key).execute();
-      },
+{
+  stateStore: {
+    async get(key: string) {
+      const db = getDb();
+      const row = await db
+        .selectFrom("auth_state")
+        .select("value")
+        .where("key", "=", key)
+        .executeTakeFirst();
+      return row ? JSON.parse(row.value) : undefined;
     },
-
-    sessionStore: {
-      async get(key: string) {
-        const db = getDb();
-        const row = await db
-          .selectFrom("auth_session")
-          .select("value")
-          .where("key", "=", key)
-          .executeTakeFirst();
-        return row ? JSON.parse(row.value) : undefined;
-      },
-      async set(key: string, value: NodeSavedSession) {
-        const db = getDb();
-        const valueJson = JSON.stringify(value);
-        await db
-          .insertInto("auth_session")
-          .values({ key, value: valueJson })
-          .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
-          .execute();
-      },
-      async del(key: string) {
-        const db = getDb();
-        await db.deleteFrom("auth_session").where("key", "=", key).execute();
-      },
+    async set(key: string, value: NodeSavedState) {
+      const db = getDb();
+      const valueJson = JSON.stringify(value);
+      await db
+        .insertInto("auth_state")
+        .values({ key, value: valueJson })
+        .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
+        .execute();
     },
-  });
+    async del(key: string) {
+      const db = getDb();
+      await db.deleteFrom("auth_state").where("key", "=", key).execute();
+    },
+  },
 
-  return client;
+  sessionStore: {
+    async get(key: string) {
+      const db = getDb();
+      const row = await db
+        .selectFrom("auth_session")
+        .select("value")
+        .where("key", "=", key)
+        .executeTakeFirst();
+      return row ? JSON.parse(row.value) : undefined;
+    },
+    async set(key: string, value: NodeSavedSession) {
+      const db = getDb();
+      const valueJson = JSON.stringify(value);
+      await db
+        .insertInto("auth_session")
+        .values({ key, value: valueJson })
+        .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
+        .execute();
+    },
+    async del(key: string) {
+      const db = getDb();
+      await db.deleteFrom("auth_session").where("key", "=", key).execute();
+    },
+  }
 }
+
 ```
+
+You can also delete the `globalAuth` memory store at the top of the file.
 
 ### Checkpoint: Test with Database
 
