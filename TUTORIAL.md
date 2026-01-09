@@ -4,6 +4,8 @@ Build a Next.js app with AT Protocol OAuth authentication.
 
 **What you'll build:** A Next.js application where users can log in with their AT Protocol identity using OAuth.
 
+See this up and running at: https://nextjs-oauth-tutorial.up.railway.app/
+
 ---
 
 ## Prerequisites
