@@ -752,15 +752,16 @@ function getClientMetadata(): OAuthClientMetadataInput {
   if (PUBLIC_URL) {
     return {
       client_id: `${PUBLIC_URL}/oauth-client-metadata.json`,
-      client_name: "My Atmosphere App",
+      client_name: "OAuth Tutorial",
       client_uri: PUBLIC_URL,
       redirect_uris: [`${PUBLIC_URL}/oauth/callback`],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       scope: SCOPE,
       token_endpoint_auth_method: "private_key_jwt" as const,
-      token_endpoint_auth_signing_alg: "ES256" as const,
+      token_endpoint_auth_signing_alg: "ES256" as const, // must match the alg in scripts/gen-key.ts
       jwks_uri: `${PUBLIC_URL}/.well-known/jwks.json`,
+      dpop_bound_access_tokens: true,
     };
   } else {
     return atprotoLoopbackClientMetadata(
@@ -793,7 +794,7 @@ You can read more about the client metadata doc here: https://atproto.com/specs/
 
 ### Checkpoint: Test Confidential Client
 
-To test your confidential client, you'll need to deploy it somewhere. We've included a simple deploy guide for Railway in [RAILWAY_DEPLOY.md](#TODO)
+To test your confidential client, you'll need to deploy it somewhere. We've included a simple deploy guide for Railway in [RAILWAY_DEPLOY.md](./RAILWAY_DEPLOY.md)
 
 ---
 
