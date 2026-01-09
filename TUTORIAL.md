@@ -55,7 +55,7 @@ Create `lib/auth/client.ts`:
 ```typescript
 import {
   NodeOAuthClient,
-  atprotoLoopbackClientMetadata,
+  buildAtprotoLoopbackClientMetadata,
 } from "@atproto/oauth-client-node";
 import type {
   NodeSavedSession,
@@ -78,13 +78,11 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
   if (client) return client;
 
   client = new NodeOAuthClient({
-    clientMetadata: atprotoLoopbackClientMetadata(
-      `http://localhost?${new URLSearchParams([
-        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", SCOPE],
-      ])}`,
-    ),
-
+    clientMetadata: buildAtprotoLoopbackClientMetadata({
+      scope: SCOPE,
+      redirect_uris: DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
+    }),
+  
     stateStore: {
       async get(key: string) {
         return globalAuth.stateStore.get(key);
@@ -119,7 +117,7 @@ The `globalThis` pattern is a standard Next.js technique for persisting data acr
 AT Protocol OAuth has a special carveout for local development. The `client_id` must be `localhost` and the `redirect_uri` must be on host `127.0.0.1`. Read more [here](https://atproto.com/specs/oauth#localhost-client-development).
 
 **Key concepts:**
-- `atprotoLoopbackClientMetadata` - Special client type for localhost development (no need to register your app)
+- `buildAtprotoLoopbackClientMetadata` - Helper for special client type used in localhost development 
 - `stateStore` - Temporary storage during OAuth flow (CSRF protection)
 - `sessionStore` - Persistent sessions keyed by user's DID
 
@@ -734,7 +732,7 @@ import {
   JoseKey,
   Keyset,
   NodeOAuthClient,
-  atprotoLoopbackClientMetadata,
+  buildAtprotoLoopbackClientMetadata,
 } from "@atproto/oauth-client-node";
 import type {
   NodeSavedSession,
@@ -766,12 +764,10 @@ function getClientMetadata(): OAuthClientMetadataInput {
       dpop_bound_access_tokens: true,
     };
   } else {
-    return atprotoLoopbackClientMetadata(
-      `http://localhost?${new URLSearchParams([
-        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", SCOPE],
-      ])}`,
-    );
+    return buildAtprotoLoopbackClientMetadata({
+      scope: SCOPE,
+      redirect_uris: DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
+    });
   }
 }
 

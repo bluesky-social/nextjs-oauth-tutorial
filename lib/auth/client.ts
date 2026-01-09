@@ -1,8 +1,9 @@
 import {
+  DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
   JoseKey,
   Keyset,
   NodeOAuthClient,
-  atprotoLoopbackClientMetadata,
+  buildAtprotoLoopbackClientMetadata,
 } from "@atproto/oauth-client-node";
 import type {
   NodeSavedSession,
@@ -34,12 +35,10 @@ function getClientMetadata(): OAuthClientMetadataInput {
       dpop_bound_access_tokens: true,
     };
   } else {
-    return atprotoLoopbackClientMetadata(
-      `http://localhost?${new URLSearchParams([
-        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", SCOPE],
-      ])}`,
-    );
+    return buildAtprotoLoopbackClientMetadata({
+      scope: SCOPE,
+      redirect_uris: DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
+    });
   }
 }
 
