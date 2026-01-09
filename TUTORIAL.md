@@ -791,6 +791,10 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
 
 You can read more about the client metadata doc here: https://atproto.com/specs/oauth#client-id-metadata-document
 
+### Checkpoint: Test Confidential Client
+
+To test your confidential client, you'll need to deploy it somewhere. We've included a simple deploy guide for Railway in [RAILWAY_DEPLOY.md](#TODO)
+
 ---
 
 ## Part 5: Requesting Scopes (Bonus)
@@ -823,3 +827,10 @@ This constant is used in three places:
 - The login route's authorize call
 
 By centralizing it in one constant, you only need to change it in one place.
+
+### Checkpoint: Requesting Scopes
+
+1. Run your app with `pnpm dev`
+2. Open http://127.0.0.1:3000 (_not_ localhost)
+3. Go throught he authorization flow
+4. On the consent screen of your authorization server, you should see that the app is requesting read access to your email as well as access to your repository
