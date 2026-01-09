@@ -1,25 +1,61 @@
 import {
+  JoseKey,
+  Keyset,
   NodeOAuthClient,
   atprotoLoopbackClientMetadata,
 } from "@atproto/oauth-client-node";
 import type {
   NodeSavedSession,
   NodeSavedState,
+  OAuthClientMetadataInput,
 } from "@atproto/oauth-client-node";
 import { getDb } from "../db";
 
+export const SCOPE = "atproto";
+
 let client: NodeOAuthClient | null = null;
+
+const PUBLIC_URL = process.env.PUBLIC_URL;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
+
+function getClientMetadata(): OAuthClientMetadataInput {
+  if (PUBLIC_URL) {
+    return {
+      client_id: `${PUBLIC_URL}/oauth-client-metadata.json`,
+      client_name: "My Atmosphere App",
+      client_uri: PUBLIC_URL,
+      redirect_uris: [`${PUBLIC_URL}/oauth/callback`],
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      scope: SCOPE,
+      token_endpoint_auth_method: "private_key_jwt" as const,
+      token_endpoint_auth_signing_alg: "ES256" as const,
+      jwks_uri: `${PUBLIC_URL}/.well-known/jwks.json`,
+    };
+  } else {
+    return atprotoLoopbackClientMetadata(
+      `http://localhost?${new URLSearchParams([
+        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
+        ["scope", SCOPE],
+      ])}`,
+    );
+  }
+}
+
+async function getKeyset(): Promise<Keyset | undefined> {
+  if (PUBLIC_URL && PRIVATE_KEY) {
+    return new Keyset([await JoseKey.fromJWK(JSON.parse(PRIVATE_KEY))]);
+  } else {
+    return undefined;
+  }
+}
 
 export async function getOAuthClient(): Promise<NodeOAuthClient> {
   if (client) return client;
 
   client = new NodeOAuthClient({
-    clientMetadata: atprotoLoopbackClientMetadata(
-      `http://localhost?${new URLSearchParams([
-        ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", "atproto"],
-      ])}`,
-    ),
+    clientMetadata: getClientMetadata(),
+    keyset: await getKeyset(),
 
     stateStore: {
       async get(key: string) {

@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "pnpm migrate && next start",
+    "migrate": "tsx scripts/migrate.ts",
+    "gen-key": "tsx scripts/gen-key.ts",
     "lint": "eslint"
   },
   "dependencies": {

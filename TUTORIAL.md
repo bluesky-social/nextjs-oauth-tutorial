@@ -60,6 +60,8 @@ import type {
   NodeSavedState,
 } from "@atproto/oauth-client-node";
 
+export const SCOPE = "atproto";
+
 // Use globalThis to persist across Next.js hot reloads
 const globalAuth = globalThis as unknown as {
   stateStore: Map<string, NodeSavedState>;
@@ -77,7 +79,7 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
     clientMetadata: atprotoLoopbackClientMetadata(
       `http://localhost?${new URLSearchParams([
         ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", "atproto"],
+        ["scope", SCOPE],
       ])}`,
     ),
 
@@ -163,7 +165,7 @@ This is route initiates the login flow. We only need the user's handle. We'll th
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-import { getOAuthClient } from "@/lib/auth/client";
+import { getOAuthClient, SCOPE } from "@/lib/auth/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -180,7 +182,7 @@ export async function POST(request: NextRequest) {
 
     // Resolves handle, finds their auth server, returns authorization URL
     const authUrl = await client.authorize(handle, {
-      scope: "atproto",
+      scope: SCOPE,
     });
 
     return NextResponse.json({ redirectUrl: authUrl.toString() });
@@ -581,6 +583,7 @@ main();
     "build": "next build",
     "start": "pnpm migrate && next start",
     "migrate": "tsx scripts/migrate.ts"
+    "lint": "eslint"
   }
 }
 ```
@@ -670,7 +673,6 @@ For production, you'll need:
 ```env
 PUBLIC_URL=https://your-app.example.com
 PRIVATE_KEY={"kty":"EC","kid":"...","alg":"ES256",...}
-DATABASE_PATH=/data/app.db
 ```
 
 ### 4.2 Generate Private Key
@@ -689,7 +691,7 @@ async function main() {
 main();
 ```
 
-Add to `package.json`:
+Add to scripts in `package.json`:
 
 ```json
 "gen-key": "tsx scripts/gen-key.ts"
@@ -698,6 +700,8 @@ Add to `package.json`:
 Run `pnpm gen-key` and save the output as `PRIVATE_KEY` env var.
 
 ### 4.3 JWKS Endpoint
+
+This is a .well-known endpoint that advertises your client's public key
 
 Create `app/.well-known/jwks.json/route.ts`:
 
@@ -713,167 +717,109 @@ export async function GET() {
   }
 
   const key = await JoseKey.fromJWK(JSON.parse(PRIVATE_KEY));
-  const publicJwk = await key.publicJwk;
-
   return NextResponse.json({
-    keys: [publicJwk],
+    keys: [key.publicJwk],
   });
 }
 ```
 
-### 4.4 Client Metadata Endpoint
+### 4.4 Update OAuth Client for Production
 
-Create `app/oauth-client-metadata.json/route.ts`:
-
-```typescript
-import { NextResponse } from "next/server";
-
-const PUBLIC_URL = process.env.PUBLIC_URL;
-
-export async function GET() {
-  if (!PUBLIC_URL) {
-    return NextResponse.json({ error: "Not configured" }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    client_id: `${PUBLIC_URL}/oauth-client-metadata.json`,
-    client_name: "My AT Protocol App",
-    client_uri: PUBLIC_URL,
-    redirect_uris: [`${PUBLIC_URL}/oauth/callback`],
-    grant_types: ["authorization_code", "refresh_token"],
-    response_types: ["code"],
-    scope: "atproto",
-    token_endpoint_auth_method: "private_key_jwt",
-    token_endpoint_auth_signing_alg: "ES256",
-    jwks_uri: `${PUBLIC_URL}/.well-known/jwks.json`,
-  });
-}
-```
-
-### 4.5 Update OAuth Client for Production
-
-Replace `lib/auth/client.ts` to support both development and production:
+Update `lib/auth/client.ts` the actual metadata for your confidential client:
 
 ```typescript
 import {
-  NodeOAuthClient,
   JoseKey,
+  Keyset,
+  NodeOAuthClient,
   atprotoLoopbackClientMetadata,
 } from "@atproto/oauth-client-node";
 import type {
   NodeSavedSession,
   NodeSavedState,
+  OAuthClientMetadataInput,
 } from "@atproto/oauth-client-node";
-import { getDb } from "@/lib/db";
+import { getDb } from "../db";
+
+export const SCOPE = "atproto";
+
+let client: NodeOAuthClient | null = null;
 
 const PUBLIC_URL = process.env.PUBLIC_URL;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-let client: NodeOAuthClient | null = null;
-
-export async function getOAuthClient(): Promise<NodeOAuthClient> {
-  if (client) return client;
-
-  // Production: use confidential client
-  // Development: use loopback client
-  const isProduction = PUBLIC_URL && PRIVATE_KEY;
-
-  let clientMetadata;
-  let keyset;
-
-  if (isProduction) {
-    clientMetadata = {
+function getClientMetadata(): OAuthClientMetadataInput {
+  if (PUBLIC_URL) {
+    return {
       client_id: `${PUBLIC_URL}/oauth-client-metadata.json`,
-      client_name: "My AT Protocol App",
+      client_name: "My Atmosphere App",
       client_uri: PUBLIC_URL,
       redirect_uris: [`${PUBLIC_URL}/oauth/callback`],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
-      scope: "atproto",
+      scope: SCOPE,
       token_endpoint_auth_method: "private_key_jwt" as const,
       token_endpoint_auth_signing_alg: "ES256" as const,
       jwks_uri: `${PUBLIC_URL}/.well-known/jwks.json`,
     };
-    keyset = [await JoseKey.fromJWK(JSON.parse(PRIVATE_KEY))];
   } else {
-    clientMetadata = atprotoLoopbackClientMetadata(
+    return atprotoLoopbackClientMetadata(
       `http://localhost?${new URLSearchParams([
         ["redirect_uri", "http://127.0.0.1:3000/oauth/callback"],
-        ["scope", "atproto"],
-      ])}`
+        ["scope", SCOPE],
+      ])}`,
     );
   }
+}
+
+async function getKeyset(): Promise<Keyset | undefined> {
+  if (PUBLIC_URL && PRIVATE_KEY) {
+    return new Keyset([await JoseKey.fromJWK(JSON.parse(PRIVATE_KEY))]);
+  } else {
+    return undefined;
+  }
+}
+
+export async function getOAuthClient(): Promise<NodeOAuthClient> {
+  if (client) return client;
 
   client = new NodeOAuthClient({
-    clientMetadata,
-    keyset,
-
-    stateStore: {
-      async get(key: string) {
-        const db = getDb();
-        const row = await db
-          .selectFrom("auth_state")
-          .select("value")
-          .where("key", "=", key)
-          .executeTakeFirst();
-        return row ? JSON.parse(row.value) : undefined;
-      },
-      async set(key: string, value: NodeSavedState) {
-        const db = getDb();
-        const valueJson = JSON.stringify(value);
-        await db
-          .insertInto("auth_state")
-          .values({ key, value: valueJson })
-          .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
-          .execute();
-      },
-      async del(key: string) {
-        const db = getDb();
-        await db.deleteFrom("auth_state").where("key", "=", key).execute();
-      },
-    },
-
-    sessionStore: {
-      async get(key: string) {
-        const db = getDb();
-        const row = await db
-          .selectFrom("auth_session")
-          .select("value")
-          .where("key", "=", key)
-          .executeTakeFirst();
-        return row ? JSON.parse(row.value) : undefined;
-      },
-      async set(key: string, value: NodeSavedSession) {
-        const db = getDb();
-        const valueJson = JSON.stringify(value);
-        await db
-          .insertInto("auth_session")
-          .values({ key, value: valueJson })
-          .onConflict((oc) => oc.column("key").doUpdateSet({ value: valueJson }))
-          .execute();
-      },
-      async del(key: string) {
-        const db = getDb();
-        await db.deleteFrom("auth_session").where("key", "=", key).execute();
-      },
-    },
-  });
-
-  return client;
-}
+    clientMetadata: getClientMetadata(),
+    keyset: await getKeyset(),
+    ...
 ```
+
+You can read more about the client metadata doc here: https://atproto.com/specs/oauth#client-id-metadata-document
 
 ---
 
-## Summary
+## Part 5: Requesting Scopes (Bonus)
 
-You've built AT Protocol OAuth in three stages:
+By default, we request only the `atproto` scope. The `atproto` scope is required and offers basic authentication for an atproto identity, however it does not authorize the client to access any privileged information or perform any actions on behalf of the user.
 
-1. **Basic OAuth** - In-memory stores with `globalThis` persistence, loopback client for local development
-2. **Database Persistence** - SQLite storage for production reliability
-3. **Production Ready** - Confidential client with private key signing
+You can request more specific scopes to expand what your app can do.
 
-**Next steps:**
-- Add user profile information (resolve DIDs to handles)
-- Request additional OAuth scopes for specific permissions
-- Build features using the authenticated session
+### 5.1 Available Scopes
+
+AT Protocol OAuth supports several scope patterns. Full documentation on OAuth scopes can be found here: https://atproto.com/specs/permission
+
+A few examples:
+
+- `atproto` - Basic authentication (required)
+- `account:email` - Access the users email (they will have the option to opt out in the consent screen)
+- `repo:com.example.record` - Write access to all `com.example.record` records
+
+### 5.2 Update the SCOPE Constant
+
+To change the requested scope, simply update the `SCOPE` constant in `lib/auth/client.ts`. It should be a space-delimited string.
+
+```typescript
+export const SCOPE = "atproto account:email repo:com.example.record";
+```
+
+This constant is used in three places:
+- The loopback client metadata (for local development)
+- The production client metadata
+- The login route's authorize call
+
+By centralizing it in one constant, you only need to change it in one place.

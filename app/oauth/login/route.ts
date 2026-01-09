@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOAuthClient } from "@/lib/auth/client";
+import { getOAuthClient, SCOPE } from "@/lib/auth/client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Resolves handle, finds their auth server, returns authorization URL
     const authUrl = await client.authorize(handle, {
-      scope: "atproto",
+      scope: SCOPE,
     });
 
     return NextResponse.json({ redirectUrl: authUrl.toString() });
