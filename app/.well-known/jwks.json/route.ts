@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { JoseKey } from "@atproto/oauth-client-node";
 
+// Serves the public keys for the OAuth client
+// Required for confidential clients using private_key_jwt authentication
+
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 export async function GET() {

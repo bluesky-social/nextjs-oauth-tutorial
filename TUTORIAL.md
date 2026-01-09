@@ -279,6 +279,9 @@ Create `app/oauth-client-metadata.json/route.ts`:
 import { getOAuthClient } from "@/lib/auth/client";
 import { NextResponse } from "next/server";
 
+// The URL of this endpoint IS your client_id
+// Authorization servers fetch this to learn about your app
+
 export async function GET() {
   const client = await getOAuthClient();
   return NextResponse.json(client.clientMetadata);
@@ -708,6 +711,9 @@ Create `app/.well-known/jwks.json/route.ts`:
 ```typescript
 import { NextResponse } from "next/server";
 import { JoseKey } from "@atproto/oauth-client-node";
+
+// Serves the public keys for the OAuth client
+// Required for confidential clients using private_key_jwt authentication
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
