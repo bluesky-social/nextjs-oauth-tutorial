@@ -131,9 +131,7 @@ import { getOAuthClient } from "./client";
 import type { OAuthSession } from "@atproto/oauth-client-node";
 
 export async function getSession(): Promise<OAuthSession | null> {
-  const cookieStore = await cookies();
-  const did = cookieStore.get("did")?.value;
-
+  const did = await getDid();
   if (!did) return null;
 
   try {
@@ -148,13 +146,6 @@ export async function getDid(): Promise<string | null> {
   const cookieStore = await cookies();
   return cookieStore.get("did")?.value ?? null;
 }
-```
-
-Create `lib/auth/index.ts` to export our auth module:
-
-```typescript
-export { getOAuthClient } from "./client";
-export { getSession, getDid } from "./session";
 ```
 
 ### 2.3 Login Route

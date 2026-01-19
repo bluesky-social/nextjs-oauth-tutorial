@@ -3,9 +3,7 @@ import { getOAuthClient } from "./client";
 import type { OAuthSession } from "@atproto/oauth-client-node";
 
 export async function getSession(): Promise<OAuthSession | null> {
-  const cookieStore = await cookies();
-  const did = cookieStore.get("did")?.value;
-
+  const did = await getDid();
   if (!did) return null;
 
   try {
