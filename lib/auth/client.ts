@@ -1,5 +1,4 @@
 import {
-  DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
   JoseKey,
   Keyset,
   NodeOAuthClient,
@@ -37,7 +36,7 @@ function getClientMetadata(): OAuthClientMetadataInput {
   } else {
     return buildAtprotoLoopbackClientMetadata({
       scope: SCOPE,
-      redirect_uris: DEFAULT_LOOPBACK_CLIENT_REDIRECT_URIS,
+      redirect_uris: ["http://127.0.0.1:3000"],
     });
   }
 }
