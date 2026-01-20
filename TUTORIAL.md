@@ -80,7 +80,7 @@ export async function getOAuthClient(): Promise<NodeOAuthClient> {
   client = new NodeOAuthClient({
     clientMetadata: buildAtprotoLoopbackClientMetadata({
       scope: SCOPE,
-      redirect_uris: ["http://127.0.0.1:3000"],
+      redirect_uris: ["http://127.0.0.1:3000/oauth/callback"],
     }),
   
     stateStore: {
@@ -763,7 +763,7 @@ function getClientMetadata(): OAuthClientMetadataInput {
   } else {
     return buildAtprotoLoopbackClientMetadata({
       scope: SCOPE,
-      redirect_uris: ["http://127.0.0.1:3000"],
+      redirect_uris: ["http://127.0.0.1:3000/oauth/callback"],
     });
   }
 }
