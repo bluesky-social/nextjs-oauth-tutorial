@@ -152,7 +152,7 @@ export async function getDid(): Promise<string | null> {
 
 Create `app/oauth/login/route.ts`:
 
-This is route initiates the login flow. We only need the user's handle. We'll then resolve the user's Authorization Server (their PDS) and redirect them there.
+This route initiates the login flow. We only need the user's handle. We'll then resolve the user's Authorization Server (their PDS) and redirect them there.
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
@@ -384,7 +384,7 @@ export function LogoutButton() {
 Replace `app/page.tsx`:
 
 ```typescript
-import { getSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth/session";
 import { LoginForm } from "@/components/LoginForm";
 import { LogoutButton } from "@/components/LogoutButton";
 
